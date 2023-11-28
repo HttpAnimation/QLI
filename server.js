@@ -2,7 +2,6 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
 const ejs = require('ejs');
 
 const app = express();
@@ -12,38 +11,64 @@ const port = 3000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Set up middleware for parsing JSON and handling file uploads
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-const storage = multer.diskStorage({
-  destination: './Files/',
-  filename: function (req, file, cb) {
-    cb(null, file.originalname);
-  }
-});
-
-const upload = multer({ storage: storage });
-
 // Serve static files from the 'public' folder
 app.use(express.static('public'));
 
 // Helper function to get file size
 function getFileSize(filename) {
-  const stats = fs.statSync(path.join(__dirname, 'Files', filename));
-  const fileSizeInBytes = stats.size;
-  const fileSizeInKilobytes = fileSizeInBytes / 1024;
-  return fileSizeInKilobytes.toFixed(2) + ' KB';
+  const filePath = path.join(__dirname, 'Files', filename);
+  try {
+    const stats = fs.statSync(filePath);
+    const fileSizeInBytes = stats.size;
+    const fileSizeInKilobytes = fileSizeInBytes / 1024;
+    return fileSizeInKilobytes.toFixed(2) + ' KB';
+  } catch (error) {
+    console.error(`Error getting file size: ${error.message}`);
+    return 'N/A';
+  }
 }
+
+// Set up middleware for parsing JSON and handling file uploads
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const storage = multer.memoryStorage(); // Use memory storage for simplicity
+const upload = multer({ storage: storage });
 
 // Define routes
 app.get('/', (req, res) => {
-  // Get the list of files in the "Files" folder
-  const filesList = fs.readdirSync('./Files');
+  try {
+    // Get the list of files in the "Files" folder
+    const filesList = fs.readdirSync('./Files');
 
-  // Render the main page with the list of files
-  res.render('index', { files: filesList.map(fileName => ({ name: fileName, size: getFileSize(fileName) })) });
+    // Render the main page with the list of files
+    res.render('index', { files: filesList.map(fileName => ({ name: fileName, size: getFileSize(fileName) })) });
+  } catch (error) {
+    console.error(`Error reading Files folder: ${error.message}`);
+    res.status(500).send('Internal Server Error');
+  }
 });
+
+// Serve static files from the 'public' folder
+app.use('/public', express.static('public'));
+
+// Define routes
+app.post('/public/upload.php', upload.single('file'), (req, res) => {
+  // Check if a file was uploaded
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+
+  // Save the file buffer to the "Files" folder
+  const fileName = req.file.originalname;
+  const filePath = path.join(__dirname, 'Files', fileName);
+
+  fs.writeFileSync(filePath, req.file.buffer);
+
+  // Redirect to the main page after the upload
+  res.redirect('/');
+});
+
 
 app.post('/upload', upload.single('file'), (req, res) => {
   // Check if a file was uploaded
@@ -51,25 +76,16 @@ app.post('/upload', upload.single('file'), (req, res) => {
     return res.status(400).send('No file uploaded.');
   }
 
-  // Execute Python script to process the uploaded file
-  const pythonScriptPath = path.join(__dirname, 'process_upload.py');
-  const command = `python ${pythonScriptPath} ${req.file.path}`;
+  // Save the file buffer to the "Files" folder
+  const fileName = req.file.originalname;
+  const filePath = path.join(__dirname, 'Files', fileName);
+  
+  fs.writeFileSync(filePath, req.file.buffer);
 
-  exec(command, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error executing Python script: ${error}`);
-      return res.status(500).send('Internal Server Error');
-    }
-
-    // Python script executed successfully
-    console.log(`Python Script Output: ${stdout}`);
-
-    // Redirect to the main page after the upload
-    res.redirect('/');
-  });
+  // Redirect to the main page after the upload
+  res.redirect('/');
 });
 
-// New route to handle file downloads
 app.get('/download/:filename', (req, res) => {
   const filePath = path.join(__dirname, 'Files', req.params.filename);
   res.download(filePath);
