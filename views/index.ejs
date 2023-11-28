@@ -1,0 +1,62 @@
+<!-- views/index.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QLI</title>
+  <!-- Add your dark mode styling here -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Welcome to QLI</h1>
+
+  <!-- Updated form with file input -->
+  <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" id="fileInput" style="display: none;" />
+    <label for="fileInput">Choose a file</label>
+    <button type="submit">Upload</button>
+  </form>
+
+  <!-- Display uploaded files -->
+  <div id="fileList">
+    <h2>Uploaded Files:</h2>
+    <ul id="files">
+      <% for (const file of files) { %>
+        <li>
+          <%= file.name %> - <%= file.size %>
+          <a href="/download/<%= file.name %>" download>Download</a>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+
+  <script>
+    // Display the selected file name in the label
+    document.getElementById('fileInput').addEventListener('change', function () {
+      const fileName = this.value.split('\\').pop();
+      this.nextElementSibling.innerText = fileName;
+    });
+
+    // Update the file list when a file is uploaded
+    document.getElementById('uploadForm').addEventListener('submit', function (event) {
+      event.preventDefault();
+
+      const filesList = document.getElementById('files');
+      const fileName = document.getElementById('fileInput').value.split('\\').pop();
+
+      // Add the uploaded file to the list
+      const listItem = document.createElement('li');
+      listItem.innerHTML = `${fileName} - <a href="/download/${fileName}" download>Download</a>`;
+      filesList.appendChild(listItem);
+
+      // Clear the file input and label
+      document.getElementById('fileInput').value = '';
+      document.getElementById('fileInput').nextElementSibling.innerText = 'Choose a file';
+    });
+  </script>
+
+  <!-- Add your file listing and other components here -->
+
+</body>
+</html>
